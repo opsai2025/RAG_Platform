@@ -176,7 +176,7 @@ for k, v in {
     "use_custom_key": False,
     "model": MODELS[0],
     "rag_type": list(RAG_INFO.keys())[0],
-    "embed_model": "models/text-embedding-005",
+    "embed_model": "models/google.generativeai",
     "chat_history": [],
     "docs_parsed": [],
     "chroma_ready": False,
@@ -349,7 +349,7 @@ if step == 1:
 
     st.info(f"ℹ️ {RAG_INFO[st.session_state.rag_type]}")
 
-    embed_opts = ["models/text-embedding-005", "models/gemini-embedding-exp-03-07"]
+    embed_opts = ["models/google.generativeai", "models/gemini-embedding-exp-03-07"]
     st.session_state.embed_model = st.selectbox("مدل Embedding:", embed_opts,
                                                  index=embed_opts.index(st.session_state.embed_model)
                                                  if st.session_state.embed_model in embed_opts else 0)
