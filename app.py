@@ -161,7 +161,7 @@ MODELS = ["gemini-3.5-flash", "gemini-3.7-flash", "gemini-3.1-pro-preview"]
 DB_PATH = "rag_meta.db"
 
 # آدرس ثابت endpoint گوگل — برخی API key ها فقط به v1 دسترسی دارند نه v1beta پیش‌فرض
-GOOGLE_API_ENDPOINT = "generativelanguage.googleapis.com"
+GOOGLE_API_ENDPOINT = "https://generativelanguage.googleapis.com"
 
 RAG_INFO = {
     "ساده (Simple)": "بازیابی مستقیم بر اساس شباهت برداری — سریع و مناسب برای اسناد همگن.",
