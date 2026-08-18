@@ -906,8 +906,26 @@ elif step == 3:
         st.rerun()
 '''
 
-out_path = Path('/mnt/data/app.py')
+
+
+import tempfile
+from pathlib import Path
+
+# گزینه ۱: کنار فایل فعلی ذخیره کن
+out_path = Path(__file__).parent / "output_app.py"
 out_path.write_text(code, encoding='utf-8')
+
+# گزینه ۲: توی دایرکتوری موقت
+out_path = Path(tempfile.gettempdir()) / "app_output.py"
+out_path.write_text(code, encoding='utf-8')
+
+# گزینه ۳: اگه می‌خوای مسیر قابل تنظیم باشه
+import os
+out_dir = os.environ.get("OUTPUT_DIR", str(Path(__file__).parent))
+out_path = Path(out_dir) / "app.py"
+out_path.write_text(code, encoding='utf-8')
+
+
 print(f'wrote {out_path} chars={len(code)}')
 py_compile.compile(str(out_path), doraise=True)
 print('compile: OK')
