@@ -176,7 +176,7 @@ for k, v in {
     "use_custom_key": False,
     "model": MODELS[0],
     "rag_type": list(RAG_INFO.keys())[0],
-    "embed_model": "google.generativeai",
+    "embed_model": "models/gemini-embedding-2",
     "chat_history": [],
     "docs_parsed": [],
     "chroma_ready": False,
@@ -349,10 +349,12 @@ if step == 1:
 
     st.info(f"ℹ️ {RAG_INFO[st.session_state.rag_type]}")
 
-    embed_opts = ["google.generativeai", "models/gemini-embedding-exp-03-07"]
+    embed_opts = ["models/gemini-embedding-2", "models/gemini-embedding-001", "models/gemini-embedding-2-preview"]
     st.session_state.embed_model = st.selectbox("مدل Embedding:", embed_opts,
                                                  index=embed_opts.index(st.session_state.embed_model)
                                                  if st.session_state.embed_model in embed_opts else 0)
+
+
 
     if st.button("🔍 بررسی مدل‌های امبدینگ در دسترس این کلید"):
         with st.spinner("در حال واکشی لیست مدل‌ها ..."):
