@@ -280,7 +280,7 @@ def ask_rag(question, vectorstore):
         client_options={"api_endpoint": GOOGLE_API_ENDPOINT},
     )
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
-    docs = retriever.get_relevant_documents(question)
+    docs = retriever.invoke(question)
     context = "\n\n".join(d.page_content for d in docs)
     prompt = f"""بر اساس متن زیر به سوال پاسخ بده. اگر پاسخ در متن نیست، صادقانه بگو نمی‌دانم.
 
