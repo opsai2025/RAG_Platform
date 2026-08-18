@@ -1,157 +1,485 @@
-import streamlit as st
+from pathlib import Path
+import re
+import textwrap
+import py_compile
+
+code = r'''import streamlit as st
 import sqlite3
 import os
 import tempfile
 from pathlib import Path
+import html as _html
+import re
 
 # ── page config ──────────────────────────────────────────────────────────────
 st.set_page_config(page_title="دستیار هوشمند RAG", page_icon="🧠", layout="wide")
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
-
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;800&display=swap');
 
 :root {
-  --c-bg:       oklch(97% 0.005 260);
-  --c-surface:  oklch(100% 0 0);
-  --c-border:   oklch(88% 0.01 260);
-  --c-text:     oklch(18% 0.02 260);
-  --c-muted:    oklch(52% 0.015 260);
-  --c-accent:   oklch(58% 0.22 280);
-  --c-accent2:  oklch(65% 0.20 160);
-  --c-warn:     oklch(72% 0.18  80);
-  --c-step-done:oklch(62% 0.18 160);
-  --c-step-act: oklch(58% 0.22 280);
-  --c-step-off: oklch(82% 0.01 260);
-  --r: 12px;
+  --c-bg: oklch(98% 0.01 260);
+  --c-bg-2: oklch(96% 0.012 260);
+  --c-surface: oklch(100% 0 0);
+  --c-surface-2: oklch(97% 0.008 260);
+  --c-border: oklch(88% 0.01 260);
+  --c-border-2: oklch(80% 0.012 260);
+  --c-text: oklch(19% 0.02 260);
+  --c-muted: oklch(48% 0.015 260);
+  --c-accent: oklch(58% 0.22 280);
+  --c-accent-2: oklch(62% 0.18 255);
+  --c-accent-soft: oklch(92% 0.05 280);
+  --c-success: oklch(65% 0.15 160);
+  --c-warn: oklch(75% 0.17 80);
+  --c-error: oklch(65% 0.18 25);
+  --c-shadow: 0 10px 30px oklch(20% 0.03 260 / 0.08);
+  --c-shadow-soft: 0 4px 14px oklch(20% 0.03 260 / 0.06);
+  --r: 16px;
+  --r-sm: 12px;
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --t: 200ms ease;
 }
 
-html, body, [class*="css"] {
-  font-family: 'Vazirmatn', 'B Homa', Tahoma, sans-serif !important;
-  direction: rtl;
-  background: var(--c-bg) !important;
+html, body, .stApp, .stApp * {
+  font-family: 'Vazirmatn', 'IRANSans', 'Tahoma', sans-serif !important;
+  direction: rtl !important;
+  text-align: right;
+  box-sizing: border-box;
+}
+
+html, body {
+  background:
+    radial-gradient(circle at top right, oklch(95% 0.04 280 / .9), transparent 28%),
+    radial-gradient(circle at bottom left, oklch(96% 0.03 240 / .7), transparent 24%),
+    linear-gradient(180deg, var(--c-bg), var(--c-bg-2)) !important;
   color: var(--c-text);
 }
 
-/* ── header ── */
-.rag-header {
-  background: linear-gradient(135deg, oklch(55% 0.24 280), oklch(62% 0.22 200));
-  border-radius: var(--r);
-  padding: 2rem 2.5rem;
-  margin-bottom: 2rem;
-  text-align: center;
-  color: #fff;
+.stApp {
+  background: transparent !important;
 }
-.rag-header h1 { font-size: 2.2rem; font-weight: 700; margin: 0 0 .4rem; }
-.rag-header p  { font-size: 1rem; opacity: .88; margin: 0; }
 
-/* ── timeline ── */
+/* keep layout RTL while preserving element order visually */
+section.main > div, .block-container {
+  padding-top: 1.25rem;
+  padding-bottom: 2rem;
+}
+
+.block-container {
+  max-width: 1320px;
+}
+
+/* Global Streamlit internals */
+.stApp [data-testid],
+.stApp [data-baseweb],
+.stApp .stMarkdown,
+.stApp .stTextInput,
+.stApp .stTextArea,
+.stApp .stSelectbox,
+.stApp .stButton,
+.stApp .stFileUploader,
+.stApp .stExpander,
+.stApp .stAlert,
+.stApp .stInfo,
+.stApp .stSuccess,
+.stApp .stWarning,
+.stApp .stError,
+.stApp .stSpinner,
+.stApp .stForm,
+.stApp .stCheckbox,
+.stApp .stProgress,
+.stApp .stRadio,
+.stApp .stMultiSelect,
+.stApp .stNumberInput,
+.stApp .stSlider,
+.stApp .stDataFrame,
+.stApp .stTable {
+  direction: rtl !important;
+  text-align: right !important;
+  font-family: inherit !important;
+}
+
+.stMarkdown p, .stMarkdown li, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3,
+.stMarkdown h4, .stMarkdown h5, .stMarkdown h6,
+[data-testid="stMarkdownContainer"] * {
+  font-family: inherit !important;
+  direction: rtl !important;
+  text-align: right !important;
+}
+
+/* inputs */
+.stTextInput input,
+.stTextArea textarea,
+.stNumberInput input,
+.stSelectbox [role="combobox"],
+.stMultiSelect [role="combobox"],
+[data-baseweb="input"] input,
+[data-baseweb="textarea"] textarea {
+  font-family: inherit !important;
+  direction: rtl !important;
+  text-align: right !important;
+  border-radius: 14px !important;
+  transition: all var(--t) !important;
+}
+
+.stTextInput input::placeholder,
+.stTextArea textarea::placeholder {
+  color: oklch(58% 0.012 260) !important;
+}
+
+/* buttons */
+.stButton > button,
+.stForm button,
+[data-testid="stFormSubmitButton"] button,
+button[kind="primary"],
+button[kind="secondary"] {
+  border-radius: 14px !important;
+  border: 1px solid transparent !important;
+  font-family: inherit !important;
+  font-weight: 700 !important;
+  transition: transform var(--t), box-shadow var(--t), opacity var(--t), background var(--t) !important;
+  padding: 0.6rem 1rem !important;
+  min-height: 44px !important;
+}
+
+.stButton > button,
+[data-testid="stFormSubmitButton"] button,
+button[kind="primary"] {
+  background: linear-gradient(135deg, var(--c-accent), var(--c-accent-2)) !important;
+  color: white !important;
+  box-shadow: var(--c-shadow-soft) !important;
+}
+
+.stButton > button:hover,
+[data-testid="stFormSubmitButton"] button:hover,
+button[kind="primary"]:hover,
+button[kind="secondary"]:hover {
+  transform: translateY(-1px);
+  opacity: .96;
+}
+
+/* containers / cards */
+.card,
+[data-testid="stExpander"],
+[data-testid="stVerticalBlockBorderWrapper"],
+[data-testid="stForm"],
+[data-testid="column"],
+.stAlert {
+  border-radius: var(--r) !important;
+}
+
+.card {
+  background: linear-gradient(180deg, var(--c-surface), var(--c-surface-2));
+  border: 1px solid var(--c-border);
+  box-shadow: var(--c-shadow);
+  padding: 1.25rem 1.35rem;
+  margin-bottom: 1rem;
+  transition: transform var(--t), box-shadow var(--t), border-color var(--t);
+}
+.card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 34px oklch(20% 0.03 260 / 0.1);
+}
+
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-weight: 800;
+  color: var(--c-accent);
+  margin-bottom: 1rem;
+  font-size: 1.08rem;
+}
+
+.api-box {
+  background: linear-gradient(135deg, oklch(96% 0.04 280), oklch(98% 0.02 255));
+  border: 1px solid oklch(86% 0.08 280);
+  border-right: 5px solid var(--c-accent);
+  border-radius: var(--r);
+  padding: 1rem 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .18rem .7rem;
+  border-radius: 999px;
+  font-size: .76rem;
+  font-weight: 700;
+  line-height: 1.6;
+}
+.badge-ok  { background: oklch(92% 0.08 160); color: oklch(32% 0.14 160); }
+.badge-err { background: oklch(93% 0.09 28); color: oklch(35% 0.18 28); }
+
+/* header */
+.rag-header {
+  background: linear-gradient(135deg, oklch(55% 0.22 280), oklch(62% 0.21 245));
+  color: white;
+  border-radius: calc(var(--r) + 6px);
+  padding: 2rem 2rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 16px 40px oklch(40% 0.12 270 / .25);
+  position: relative;
+  overflow: hidden;
+}
+.rag-header::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 0%, oklch(100% 0 0 / .06) 35%, transparent 70%);
+  pointer-events: none;
+}
+.rag-header h1 {
+  margin: 0 0 .35rem;
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
+  font-weight: 800;
+}
+.rag-header p {
+  margin: 0;
+  opacity: .92;
+  font-size: 1rem;
+}
+
+/* timeline */
 .timeline {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0;
-  margin-bottom: 2.5rem;
+  margin: 1.25rem 0 1.5rem;
   direction: ltr;
 }
 .tl-step {
-  display: flex; flex-direction: column; align-items: center;
-  position: relative; flex: 1; max-width: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  flex: 1;
+  max-width: 220px;
 }
 .tl-circle {
-  width: 44px; height: 44px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 1rem; z-index: 1;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1rem;
   border: 3px solid transparent;
-  transition: all .25s ease;
+  transition: all var(--t);
+  background: var(--c-surface);
 }
-.tl-circle.done  { background: var(--c-step-done); color: #fff; border-color: var(--c-step-done); }
-.tl-circle.active{ background: var(--c-step-act);  color: #fff; border-color: var(--c-step-act);
-                   box-shadow: 0 0 0 5px oklch(58% 0.22 280 / .18); }
-.tl-circle.off   { background: var(--c-surface); color: var(--c-muted); border-color: var(--c-border); }
-.tl-label { font-size: .78rem; margin-top: .45rem; color: var(--c-muted); text-align: center; direction: rtl; }
-.tl-label.active { color: var(--c-accent); font-weight: 600; }
+.tl-circle.done {
+  background: var(--c-success);
+  color: white;
+  border-color: var(--c-success);
+  box-shadow: 0 0 0 6px oklch(65% 0.15 160 / .12);
+}
+.tl-circle.active {
+  background: var(--c-accent);
+  color: white;
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 6px oklch(58% 0.22 280 / .14);
+}
+.tl-circle.off {
+  border-color: var(--c-border);
+  color: var(--c-muted);
+}
+.tl-label {
+  font-size: .82rem;
+  margin-top: .5rem;
+  color: var(--c-muted);
+  text-align: center;
+  direction: rtl;
+}
+.tl-label.active {
+  color: var(--c-accent);
+  font-weight: 700;
+}
 .tl-line {
-  flex: 1; height: 3px; background: var(--c-border);
-  margin-bottom: 1.4rem; max-width: 80px;
+  flex: 1;
+  height: 3px;
+  background: var(--c-border);
+  margin-bottom: 1.5rem;
+  max-width: 120px;
+  border-radius: 999px;
 }
-.tl-line.done { background: var(--c-step-done); }
+.tl-line.done { background: linear-gradient(90deg, var(--c-success), var(--c-accent)); }
 
-/* ── card ── */
-.card {
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  border-radius: var(--r);
-  padding: 1.8rem 2rem;
-  margin-bottom: 1.2rem;
-  box-shadow: 0 1px 4px oklch(0% 0 0 / .06);
-}
-.card-title {
-  font-size: 1.15rem; font-weight: 700;
-  color: var(--c-accent); margin-bottom: 1rem;
-  display: flex; align-items: center; gap: .5rem;
-}
-
-/* ── api key box ── */
-.api-box {
-  background: oklch(96% 0.015 280);
-  border: 1.5px dashed var(--c-accent);
-  border-radius: var(--r); padding: 1.2rem 1.5rem;
-  margin-bottom: 1rem;
-}
-
-/* ── source chunk ── */
+/* source chunk */
 .source-chunk {
-  background: oklch(96% 0.01 260);
-  border-right: 4px solid var(--c-accent);
-  border-radius: 8px; padding: .9rem 1rem;
-  margin-bottom: .7rem; font-size: .88rem;
-}
-.source-rank { font-weight: 700; color: var(--c-accent); margin-bottom: .3rem; }
-
-/* ── chat bubbles ── */
-.bubble-user {
-  background: oklch(94% 0.04 280);
-  border-radius: 16px 4px 16px 16px;
-  padding: .75rem 1.1rem; margin: .5rem 0;
-  max-width: 78%; margin-right: auto;
-  font-size: .95rem;
-}
-.bubble-bot {
-  background: var(--c-surface);
+  background: oklch(97% 0.01 260);
   border: 1px solid var(--c-border);
-  border-radius: 4px 16px 16px 16px;
-  padding: .75rem 1.1rem; margin: .5rem 0;
-  max-width: 88%; margin-left: auto;
-  font-size: .95rem;
+  border-right: 4px solid var(--c-accent);
+  border-radius: 14px;
+  padding: .85rem .95rem;
+  margin-bottom: .7rem;
+  font-size: .9rem;
+  line-height: 1.9;
+}
+.source-rank {
+  font-weight: 800;
+  color: var(--c-accent);
+  margin-bottom: .25rem;
 }
 
-/* ── buttons ── */
-.stButton > button {
-  background: linear-gradient(135deg, var(--c-accent), oklch(62% 0.22 200)) !important;
-  color: #fff !important; border: none !important;
-  border-radius: 8px !important; font-family: inherit !important;
-  font-weight: 600 !important; padding: .55rem 1.6rem !important;
-  transition: opacity .2s !important;
+/* chat bubbles */
+.chat-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: .6rem;
+  margin: .7rem 0 .95rem;
 }
-.stButton > button:hover { opacity: .88 !important; }
+.chat-bubble {
+  display: flex;
+  gap: .7rem;
+  align-items: flex-start;
+  max-width: 92%;
+  border-radius: 18px;
+  padding: .9rem 1rem;
+  box-shadow: var(--c-shadow-soft);
+  transition: transform var(--t), box-shadow var(--t), border-color var(--t);
+}
+.chat-bubble:hover { transform: translateY(-1px); }
+.chat-bubble.user {
+  margin-right: auto;
+  flex-direction: row-reverse;
+  background: linear-gradient(135deg, oklch(58% 0.22 280), oklch(62% 0.19 255));
+  color: white;
+  border: 1px solid oklch(60% 0.18 280 / .35);
+  border-bottom-right-radius: 6px;
+}
+.chat-bubble.bot {
+  margin-left: auto;
+  background: linear-gradient(180deg, var(--c-surface), var(--c-surface-2));
+  border: 1px solid var(--c-border);
+  color: var(--c-text);
+  border-bottom-left-radius: 6px;
+}
+.chat-avatar {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: oklch(97% 0.02 260 / .95);
+  color: var(--c-accent);
+  font-size: 1.05rem;
+  box-shadow: inset 0 0 0 1px oklch(88% 0.01 260);
+}
+.chat-bubble.user .chat-avatar {
+  background: oklch(100% 0 0 / .18);
+  color: white;
+  box-shadow: inset 0 0 0 1px oklch(100% 0 0 / .18);
+}
+.chat-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.9;
+  font-size: .96rem;
+  overflow-wrap: anywhere;
+}
+.chat-content p { margin: 0 0 .65rem; }
+.chat-content p:last-child { margin-bottom: 0; }
+.chat-content ul, .chat-content ol {
+  margin: .45rem 0 .6rem;
+  padding-inline-start: 1.15rem;
+}
+.chat-content li { margin: .18rem 0; }
+.chat-content h1, .chat-content h2, .chat-content h3 {
+  margin: .35rem 0 .55rem;
+  line-height: 1.4;
+}
+.chat-content h1 { font-size: 1.22rem; }
+.chat-content h2 { font-size: 1.12rem; }
+.chat-content h3 { font-size: 1.02rem; }
+.chat-content strong { font-weight: 800; }
+.chat-content em { font-style: italic; }
+.chat-content code {
+  font-family: 'Vazirmatn', monospace !important;
+  padding: .08rem .35rem;
+  border-radius: 8px;
+  background: oklch(94% 0.02 260);
+  border: 1px solid oklch(88% 0.01 260);
+}
+.chat-bubble.user .chat-content code {
+  background: oklch(100% 0 0 / .15);
+  border-color: oklch(100% 0 0 / .18);
+  color: white;
+}
+.chat-content a { color: var(--c-accent); text-decoration: none; }
+.chat-content a:hover { text-decoration: underline; }
 
-/* ── misc ── */
-.stTextInput > div > div > input,
-.stSelectbox > div > div,
-.stTextArea textarea {
-  font-family: inherit !important; direction: rtl !important;
-  border-radius: 8px !important;
+/* Alerts, expanders, progress, spinner, uploader */
+.stAlert, [data-testid="stAlert"] {
+  border-radius: var(--r) !important;
+  border: 1px solid var(--c-border) !important;
+  box-shadow: var(--c-shadow-soft) !important;
 }
-.stFileUploader { direction: rtl; }
-.badge {
-  display: inline-block; padding: .2rem .65rem;
-  border-radius: 20px; font-size: .75rem; font-weight: 600;
+[data-testid="stAlertContentInfo"] { background: oklch(95% 0.03 250) !important; }
+[data-testid="stAlertContentSuccess"] { background: oklch(94% 0.05 160) !important; }
+[data-testid="stAlertContentWarning"] { background: oklch(96% 0.06 80) !important; }
+[data-testid="stAlertContentError"] { background: oklch(95% 0.06 25) !important; }
+
+[data-testid="stExpander"] {
+  background: linear-gradient(180deg, var(--c-surface), var(--c-surface-2)) !important;
+  border: 1px solid var(--c-border) !important;
+  box-shadow: var(--c-shadow-soft) !important;
+  overflow: hidden;
 }
-.badge-ok  { background: oklch(92% 0.08 160); color: oklch(35% 0.15 160); }
-.badge-err { background: oklch(94% 0.08  30); color: oklch(40% 0.18  30); }
+[data-testid="stExpander"] summary {
+  font-weight: 700 !important;
+}
+
+[data-testid="stFileUploader"] {
+  border-radius: var(--r) !important;
+}
+[data-testid="stFileUploaderDropzone"] {
+  border: 1.5px dashed var(--c-border-2) !important;
+  background: linear-gradient(180deg, oklch(99% 0.01 260), oklch(97% 0.01 260)) !important;
+  border-radius: var(--r) !important;
+}
+[data-testid="stFileUploaderDropzoneInstructions"] {
+  color: var(--c-muted) !important;
+}
+
+[data-testid="stProgressBar"] > div {
+  background: linear-gradient(90deg, var(--c-accent), var(--c-success)) !important;
+}
+
+/* extra broad targeting for internal widgets */
+[data-testid="stSidebar"], [data-testid="stSidebar"] * {
+  direction: rtl !important;
+  text-align: right !important;
+  font-family: inherit !important;
+}
+
+[data-testid="stVerticalBlock"] {
+  gap: 0.55rem;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--c-border);
+  margin: 1rem 0;
+}
+
+.small-muted {
+  color: var(--c-muted);
+  font-size: .86rem;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -183,6 +511,100 @@ for k, v in {
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
+
+# ── markdown helper ───────────────────────────────────────────────────────────
+def md_to_html(text):
+    """Convert markdown-ish text to safe HTML. Uses python-markdown if available; otherwise a small fallback."""
+    text = "" if text is None else str(text)
+    try:
+        import markdown as _md  # type: ignore
+        return _md.markdown(text, extensions=["extra", "sane_lists"], output_format="html5")
+    except Exception:
+        pass
+
+    # fallback: safe escape first, then apply very small markdown subset
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = _html.escape(text)
+
+    # code spans first
+    code_spans = {}
+    def _code_repl(m):
+        key = f"__CODE_{len(code_spans)}__"
+        code_spans[key] = m.group(1)
+        return key
+    text = re.sub(r"`([^`]+)`", _code_repl, text)
+
+    # headings line by line and lists
+    lines = text.split("\n")
+    out = []
+    in_ul = False
+    in_ol = False
+
+    def close_lists():
+        nonlocal in_ul, in_ol
+        if in_ul:
+            out.append("</ul>")
+            in_ul = False
+        if in_ol:
+            out.append("</ol>")
+            in_ol = False
+
+    for raw_line in lines:
+        line = raw_line.rstrip()
+        stripped = line.strip()
+        if not stripped:
+            close_lists()
+            out.append("")
+            continue
+
+        heading = None
+        if stripped.startswith("### "):
+            heading = f"<h3>{stripped[4:]}</h3>"
+        elif stripped.startswith("## "):
+            heading = f"<h2>{stripped[3:]}</h2>"
+        elif stripped.startswith("# "):
+            heading = f"<h1>{stripped[2:]}</h1>"
+        if heading:
+            close_lists()
+            out.append(heading)
+            continue
+
+        bullet = re.match(r"^[-*]\s+(.*)$", stripped)
+        numbered = re.match(r"^\d+\.\s+(.*)$", stripped)
+        if bullet:
+            if in_ol:
+                out.append("</ol>")
+                in_ol = False
+            if not in_ul:
+                out.append("<ul>")
+                in_ul = True
+            out.append(f"<li>{bullet.group(1)}</li>")
+            continue
+        if numbered:
+            if in_ul:
+                out.append("</ul>")
+                in_ul = False
+            if not in_ol:
+                out.append("<ol>")
+                in_ol = True
+            out.append(f"<li>{numbered.group(1)}</li>")
+            continue
+
+        close_lists()
+        # inline formatting
+        line = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", line)
+        line = re.sub(r"(?<!\*)\*(?!\s)(.+?)(?<!\s)\*(?!\*)", r"<em>\1</em>", line)
+        line = re.sub(r"__([^_]+)__", r"<strong>\1</strong>", line)
+        out.append(f"<p>{line}</p>")
+
+    close_lists()
+    html = "\n".join(out)
+    html = html.replace("\n\n", "</p><p>")
+    html = html.replace("\n", "<br>")
+    for k2, v2 in code_spans.items():
+        html = html.replace(k2, f"<code>{v2}</code>")
+    html = html.replace("<p></p>", "")
+    return html
 
 # ── DB ────────────────────────────────────────────────────────────────────────
 def init_db():
@@ -292,6 +714,18 @@ def ask_rag(question, vectorstore):
     response = llm.invoke(prompt)
     return response.content, docs
 
+
+def render_chat_message(msg):
+    role = msg.get("role", "bot")
+    content = msg.get("content", "")
+    icon = "🧑‍💻" if role == "user" else "🤖"
+    kind = "user" if role == "user" else "bot"
+    bubble_html = md_to_html(content)
+    st.markdown(
+        f'<div class="chat-wrap"><div class="chat-bubble {kind}"><div class="chat-avatar">{icon}</div><div class="chat-content">{bubble_html}</div></div></div>',
+        unsafe_allow_html=True,
+    )
+
 # ── header ────────────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="rag-header">
@@ -353,8 +787,6 @@ if step == 1:
     st.session_state.embed_model = st.selectbox("مدل Embedding:", embed_opts,
                                                  index=embed_opts.index(st.session_state.embed_model)
                                                  if st.session_state.embed_model in embed_opts else 0)
-
-
 
     if st.button("🔍 بررسی مدل‌های امبدینگ در دسترس این کلید"):
         with st.spinner("در حال واکشی لیست مدل‌ها ..."):
@@ -437,15 +869,12 @@ elif step == 3:
 
     # chat history display
     for msg in st.session_state.chat_history:
-        if msg["role"] == "user":
-            st.markdown(f'<div class="bubble-user">🧑 {msg["content"]}</div>', unsafe_allow_html=True)
-        else:
-            st.markdown(f'<div class="bubble-bot">🤖 {msg["content"]}</div>', unsafe_allow_html=True)
-            if "sources" in msg:
-                with st.expander("📚 منابع مرتبط (۳ قطعه برتر)"):
-                    for j, src in enumerate(msg["sources"]):
-                        st.markdown(f'<div class="source-chunk"><div class="source-rank">#{j+1}</div>{src.page_content[:350]}...</div>',
-                                    unsafe_allow_html=True)
+        render_chat_message(msg)
+        if msg["role"] != "user" and "sources" in msg:
+            with st.expander("📚 منابع مرتبط (۳ قطعه برتر)"):
+                for j, src in enumerate(msg["sources"]):
+                    st.markdown(f'<div class="source-chunk"><div class="source-rank">#{j+1}</div>{_html.escape(src.page_content[:350])}...</div>',
+                                unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -475,3 +904,10 @@ elif step == 3:
             except Exception as e:
                 st.session_state.chat_history.append({"role": "bot", "content": f"❌ خطا: {e}"})
         st.rerun()
+'''
+
+out_path = Path('/mnt/data/app.py')
+out_path.write_text(code, encoding='utf-8')
+print(f'wrote {out_path} chars={len(code)}')
+py_compile.compile(str(out_path), doraise=True)
+print('compile: OK')
