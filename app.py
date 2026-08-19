@@ -689,26 +689,45 @@ def build_vectorstore(all_chunks):
             )
         raise
 
+#def ask_rag(question, vectorstore):
+#    from langchain_google_genai import ChatGoogleGenerativeAI
+#    llm = ChatGoogleGenerativeAI(
+#        model=st.session_state.model,
+#        google_api_key=get_api_key(),
+#        temperature=0.3,
+#        client_options={"api_endpoint": GOOGLE_API_ENDPOINT},
+#    )
+#    retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+#    docs = retriever.invoke(question)
+#    context = "\n\n".join(d.page_content for d in docs)
+#    prompt = f"""بر اساس متن زیر به سوال پاسخ بده. اگر پاسخ در متن نیست، صادقانه بگو نمی‌دانم.
+
+متن# :
+#{context}
+
+سوال# : {question}
+پاسخ# :"""
+#    response = llm.invoke(prompt)
+#    return response.content, docs
+  
 def ask_rag(question, vectorstore):
-    from langchain_google_genai import ChatGoogleGenerativeAI
-    llm = ChatGoogleGenerativeAI(
-        model=st.session_state.model,
-        google_api_key=get_api_key(),
-        temperature=0.3,
-        client_options={"api_endpoint": GOOGLE_API_ENDPOINT},
-    )
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
-    docs = retriever.invoke(question)
-    context = "\n\n".join(d.page_content for d in docs)
-    prompt = f"""بر اساس متن زیر به سوال پاسخ بده. اگر پاسخ در متن نیست، صادقانه بگو نمی‌دانم.
-
-متن:
-{context}
-
-سوال: {question}
-پاسخ:"""
+    # ... کد موجود ...
     response = llm.invoke(prompt)
-    return response.content, docs
+    
+    # normalize کردن content
+    content = response.content
+    if isinstance(content, list):
+        # استخراج متن از بلاک‌های مختلف
+        text_parts = []
+        for block in content:
+            if isinstance(block, dict) and block.get('type') == 'text':
+                text_parts.append(block.get('text', ''))
+            elif isinstance(block, str):
+                text_parts.append(block)
+        content = ''.join(text_parts)
+    
+    return content, docs
+
 
 
 def render_chat_message(msg):
