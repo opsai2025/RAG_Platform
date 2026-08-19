@@ -700,7 +700,7 @@ def ask_rag(question, vectorstore):
     retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
     docs = retriever.invoke(question)
     context = "\n\n".join(d.page_content for d in docs)
-    prompt = f"""بر اساس متن زیر به سوال پاسخ بده. اگر پاسخ در متن نیست، صادقانه بگو نمی‌دانم.
+    prompt = f"""بر اساس متن زیر به سوال پاسخ بده. اگر پاسخ بصورت شفاف در متن نیست بگو نمی دانم ولی میتوانی برای راهنمایی کاربر به نزدیک ترین محتوا و پاراگرافی که در متن اشاره شده اشاره کنی ولی به کاربر بگی که این صرفا نزدیک ترین محتوا پیدا شده به سوال شما است
 
 متن :
 {context}
